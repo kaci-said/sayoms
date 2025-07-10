@@ -1,0 +1,58 @@
+module Ladb
+  module BulkLineExtender
+    TOLERANCE_MM = 0.5
+    MAX_EXTENSION_MM = 500.0
+    ANGLE_TOLERANCE_DEG = 5.0
+
+    def self.extend_all_lines
+      model = Sketchup.active_model
+      ents = model.active_entities
+      edges = ents.grep(Sketchup::Edge)
+
+      model.start_operation("Prolonger lignes vers intersections", true)
+      count = 0
+
+      edges.each do |edge_a|
+        dir_a = edge_a.line[1]
+        [edge_a.start.position, edge_a.end.position].each do |pt_a|
+          edges.each do |edge_b|
+            next if edge_b == edge_a
+
+            dir_b = edge_b.line[1]
+            angle = dir_a.angle_between(dir_b)
+            angle_deg = (angle * 180 / Math::PI).round(2)
+
+            next unless angle < ANGLE_TOLERANCE_DEG.degrees || (angle - 90.degrees).abs < ANGLE_TOLERANCE_DEG.degrees
+
+            pt_b = edge_b.line[0]
+            proj_len = (pt_a - pt_b).dot(dir_b)
+            projected = pt_b.offset(dir_b, proj_len)
+            dist = pt_a.distance(projected)
+
+            next unless dist > TOLERANCE_MM.mm && dist < MAX_EXTENSION_MM.mm
+
+            existing = ents.grep(Sketchup::Edge).find do |e|
+              s, t = e.start.position, e.end.position
+              (s == pt_a && t == projected) || (s == projected && t == pt_a)
+            end
+            next if existing
+
+            new_edge = ents.add_line(pt_a, projected)
+            if new_edge
+              new_edge.material = "purple"
+              count += 1
+              puts "✅ Ligne prolongée entre #{pt_a} et #{projected} (#{dist.to_mm.round(1)} mm)"
+              break
+            end
+          end
+        end
+      end
+
+      model.commit_operation
+      UI.messagebox("✅ #{count} prolongation(s) ajoutée(s).")
+    end
+  end
+end
+
+# Pour exécuter :
+Ladb::BulkLineExtender.extend_all_lines
