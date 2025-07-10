@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Composants</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    table { border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 4px 8px; }
+    .dimensions-form { margin-top: 20px; padding: 10px; border: 1px solid #999; background: #f9f9f9; width: fit-content; }
+    .dimensions-form input { width: 60px; margin-left: 5px; margin-right: 10px; }
+    button.panel-button {
+      margin-left: 10px;
+      padding: 3px 8px;
+      background-color: #eef;
+      border: 1px solid #88a;
+      border-radius: 4px;
+      font-size: 0.85em;
+      cursor: pointer;
+    }
+    button.panel-button:hover {
+      background-color: #dde;
+    }
+  </style>
+</head>
+<body>
+  <div class="info"><p>Chargement des composants...</p></div>
+
+  <h2>Matériaux utilisés</h2>
+  <table id="materialsTable">
+    <thead>
+      <tr>
+        <th>Matériau</th>
+        <th>Quantité</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <ul id="componentTree"></ul>
+
+  <div class="dimensions-form">
+    <h3>Modifier les dimensions (en cm)</h3>
+    <label>Longueur (X): <input id="lenX" type="number" value="100"></label>
+    <label>Largeur (Y): <input id="lenY" type="number" value="50"></label>
+    <label>Hauteur (Z): <input id="lenZ" type="number" value="30"></label>
+    <button onclick="sendDimensions()">🔄 Appliquer</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
