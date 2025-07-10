@@ -1,6 +1,6 @@
 # encoding: UTF-8
 require 'json'
-require_relative 'component_utils'
+require_relative 'component_utils/component_utils'
 
 module LenXYZ
   extend self
@@ -51,7 +51,9 @@ module LenXYZ
     components_data = ComponentUtils.get_all_parts_data
     #puts "📄 Données envoyées : #{components_data}"
 
-    dlg.execute_script("updateData(#{components_data})")
+    #dlg.execute_script("updateData(#{components_data})")
+    dlg.execute_script("updateData(#{components_data.to_json})")
+
   end
 
   def start_selection_watcher(dlg)

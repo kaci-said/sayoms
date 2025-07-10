@@ -1,6 +1,6 @@
 // script.js
 
-// Nettoie une chaîne et extrait une valeur numérique (utile pour les valeurs approximatives comme "~ 95.75mm")
+// 🔧 Nettoie une chaîne et extrait une valeur numérique (utile pour les valeurs comme "~ 95.75mm")
 function cleanNumeric(val) {
   if (typeof val === "string") {
     const match = val.match(/[-+]?\d*\.?\d+/);
@@ -9,16 +9,15 @@ function cleanNumeric(val) {
   return typeof val === "number" ? val : null;
 }
 
-// Formatte les dimensions en mm
+// 🔧 Formatte une valeur avec unité mm (ou retourne directement si elle est déjà approximative)
 function formatDim(val) {
   if (val === undefined || val === null) return "?";
-  if (typeof val === "string" && val.includes("~")) {
-    return val; // retourne directement si c'est une valeur approximative
-  }
+  if (typeof val === "string" && val.includes("~")) return val;
   const num = parseFloat(val);
   return isNaN(num) ? val.toString() : (num).toFixed(2) + " mm";
 }
 
+// Types de matériaux OCL
 const MATERIAL_TYPES = {
   0: "Inconnu",
   1: "Bois massif",
@@ -50,7 +49,7 @@ function updateData(data) {
 
     if (comp.material_name) {
       text += `🩵 Matériau: ${comp.material_name}`;
-      materials[comp.material_name] = materials[comp.material_name] ? materials[comp.material_name] + 1 : 1;
+      materials[comp.material_name] = (materials[comp.material_name] || 0) + 1;
 
       if (comp.material_type !== undefined) {
         const typeLabel = MATERIAL_TYPES[comp.material_type] || "Type inconnu";
@@ -94,76 +93,67 @@ function updateData(data) {
         const horizontal = [];
         const o2Generated = new Set();
 
+        // Fonction récursive de génération G-code
         function addHardwareLines(children, parentLength, parentWidth, parentThickness) {
           children.forEach(child => {
             if (child.material_type === 5 && child.origin) {
               const matName = child.material_name || "(Sans nom)";
               const isO2 = matName.trim().toUpperCase() === "O2 T1";
-              let x = cleanNumeric(child.origin.x);
-              let y = cleanNumeric(child.origin.y);
-              const z = parentThickness;
+
+              const x = cleanNumeric(child.origin.x);
+              const y = cleanNumeric(child.origin.y);
+              const z = cleanNumeric(parentThickness);
+              const L = cleanNumeric(parentLength);
+              const W = cleanNumeric(parentWidth);
               const halfZ = (z / 2).toFixed(1);
+              const EPSILON = 0.5;
 
               if (isO2) {
                 if (child.orientation === "longueur") {
-                  horizontal.push(`O2 T1`);
-                  horizontal.push(`F0`);
-                  horizontal.push(`G0 X${Math.round(x)} Y30 Z${z}`);
-                  horizontal.push(`G1 X${Math.round(x)} Y30 Z${halfZ}`);
+                  horizontal.push(`O2 T1`, "F0", `G0 X${Math.round(x)} Y30 Z${z}`, `G1 X${Math.round(x)} Y30 Z${halfZ}`);
                 } else if (child.orientation === "largeur") {
-                  horizontal.push(`O2 T1`);
-                  horizontal.push(`F0`);
-                  horizontal.push(`G0 X30 Y${Math.round(y)} Z${z}`);
-                  horizontal.push(`G1 X30 Y${Math.round(y)} Z${halfZ}`);
+                  horizontal.push(`O2 T1`, "F0", `G0 X30 Y${Math.round(y)} Z${z}`, `G1 X30 Y${Math.round(y)} Z${halfZ}`);
                 }
-              } else {
-                if (child.orientation === "largeur") {
-                  const isRight = x >= parentLength / 2.0;
-                  x = isRight ? Math.round(parentLength - 32) : 32;
+              } else if (child.orientation === "largeur") {
+                const yRounded = Math.round(y);
+                const isLeft = Math.abs(x) < EPSILON;
+                const isRight = Math.abs(x - L) < EPSILON;
 
-                  precage.push(`O1 T1`);
-                  precage.push(`F0`);
-                  precage.push(`G0 X${x} Y${Math.round(y)} Z${z}`);
-                  precage.push(`G1 X${x} Y${Math.round(y)} Z${(z - 12).toFixed(1)}`);
-
-                  const o2Key = `Y${Math.round(y)}`;
-                  if (!o2Generated.has(o2Key)) {
-                    horizontal.push(`O2 T1`);
-                    horizontal.push(`F0`);
-                    horizontal.push(`G0 X0 Y${Math.round(y)} Z${z}`);
-                    horizontal.push(`G1 X30 Y${Math.round(y)} Z${halfZ}`);
-                    o2Generated.add(o2Key);
-                  }
-
-                  if (isRight) {
-                    horizontal.push(`O3 T1`);
-                    horizontal.push(`F0`);
-                    horizontal.push(`G0 X${parentLength} Y${Math.round(y)} Z${z}`);
-                    horizontal.push(`G1 X${parentLength - 30} Y${Math.round(y)} Z${halfZ}`);
-                  }
-
+                if (isLeft) {
+                  precage.push(`O1 T1`, "F0", `G0 X32 Y${yRounded} Z${z}`, `G1 X32 Y${yRounded} Z5`);
+                } else if (isRight) {
+                  const xPos = L - 32;
+                  precage.push(`O1 T1`, "F0", `G0 X${xPos} Y${yRounded} Z${z}`, `G1 X${xPos} Y${yRounded} Z5`);
                 } else {
-                  x = Math.round(x);
-                  const isTop = y >= parentWidth / 2.0;
-                  y = isTop ? Math.round(parentWidth - 32) : 32;
+                  const isRightHalf = x >= L / 2.0;
+                  const xPos = isRightHalf ? L - 32 : 32;
+                  precage.push(`O1 T1`, "F0", `G0 X${xPos} Y${yRounded} Z${z}`, `G1 X${xPos} Y${yRounded} Z${(z - 12).toFixed(1)}`);
+                }
 
-                  precage.push(`O1 T1`);
-                  precage.push(`F0`);
-                  precage.push(`G0 X${x} Y${y} Z${z}`);
-                  precage.push(`G1 X${x} Y${y} Z${(z - 12).toFixed(1)}`);
+                const o2Key = `Y${yRounded}`;
+                if (!o2Generated.has(o2Key)) {
+                  horizontal.push(`O2 T1`, "F0", `G0 X0 Y${yRounded} Z${z}`, `G1 X30 Y${yRounded} Z${halfZ}`);
+                  o2Generated.add(o2Key);
+                }
 
-                  horizontal.push(`O4 T1`);
-                  horizontal.push(`F0`);
-                  if (isTop) {
-                    horizontal.push(`G0 X${x} Y${parentWidth} Z${z}`);
-                    horizontal.push(`G1 X${x} Y${parentWidth - 30} Z${halfZ}`);
-                  } else {
-                    horizontal.push(`G0 X${x} Y0 Z${z}`);
-                    horizontal.push(`G1 X${x} Y30 Z${halfZ}`);
-                  }
+                if (isRight) {
+                  horizontal.push(`O3 T1`, "F0", `G0 X${L} Y${yRounded} Z${z}`, `G1 X${L - 30} Y${yRounded} Z${halfZ}`);
+                }
+              } else if (child.orientation === "longueur") {
+                const xRounded = Math.round(x);
+                const isTop = y >= W / 2.0;
+                const yPos = isTop ? W - 32 : 32;
+
+                precage.push(`O1 T1`, "F0", `G0 X${xRounded} Y${yPos} Z${z}`, `G1 X${xRounded} Y${yPos} Z${(z - 12).toFixed(1)}`);
+                horizontal.push(`O4 T1`, "F0");
+                if (isTop) {
+                  horizontal.push(`G0 X${xRounded} Y${W} Z${z}`, `G1 X${xRounded} Y${W - 30} Z${halfZ}`);
+                } else {
+                  horizontal.push(`G0 X${xRounded} Y0 Z${z}`, `G1 X${xRounded} Y30 Z${halfZ}`);
                 }
               }
             }
+
             if (child.children) addHardwareLines(child.children, parentLength, parentWidth, parentThickness);
           });
         }
@@ -216,6 +206,7 @@ function updateData(data) {
   document.querySelector(".info p").textContent = `✅ ${filteredData.length} composant(s) trouvés.`;
 }
 
+// Communication SketchUp → WebDialog
 window.addEventListener("message", function(event) {
   const message = event.data;
   if (message.action === "su_action" && message.type === "updateData") {
@@ -223,6 +214,7 @@ window.addEventListener("message", function(event) {
   }
 });
 
+// Requête initiale à SketchUp au chargement
 function requestComponentData() {
   window.parent.postMessage({
     action: "su_action",
